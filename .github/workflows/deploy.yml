@@ -37,4 +37,3 @@ jobs:
             --name test \
             --resource-group practice \
             --image potluriujwala/app:${{ github.run_number }}
-/app:v2
