@@ -1,4 +1,4 @@
-name: deploy in CA
+name: deploy in CA with github actions
 
 on:
   push:
