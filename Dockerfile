@@ -1,4 +1,4 @@
-FROM potluriujwala/base:latest
+FROM actionstestdeploybase.azurecr.io/actionstestdeploybase:latest
 
 WORKDIR /app
 
