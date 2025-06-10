@@ -1,4 +1,4 @@
-name: Build and Deploy to Azure Container Apps
+.name: Build and Deploy to Azure Container Apps
 
 on:
   push:
@@ -42,8 +42,8 @@ jobs:
       - name: Build and push base image if requirements.txt changed
         if: steps.check_requirements.outputs.changed == 'true'
         run: |
-          docker build -f Dockerfile.base -t ${{ env.BASE_ACR_LOGIN_SERVER }}/${{ BASE_IMAGE_NAME }}:latest .
-          docker push ${{ env.BASE_ACR_LOGIN_SERVER }}/${{ BASE_IMAGE_NAME }}:latest
+          docker build -f Dockerfile.base -t ${{ env.BASE_ACR_LOGIN_SERVER }}/${{ env.BASE_IMAGE_NAME }}:latest .
+          docker push ${{ env.BASE_ACR_LOGIN_SERVER }}/${{ env.BASE_IMAGE_NAME }}:latest
 
       - name: Log in to ACR
         run: |
