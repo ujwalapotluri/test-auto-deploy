@@ -12,25 +12,34 @@ jobs:
     env:
       IMAGE_NAME: potluriujwala/app
       IMAGE_TAG: build-${{ github.run_number }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      ACR_IMAGE_NAME_BASE: base
+      ACR_IMAGE_NAME_APP: app
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-
-      - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      - name: Build Docker Image
-        run: docker build -t potluriujwala/app:${{ github.run_number }} .
-
-      - name: Push Docker Image to Docker Hub
-        run: docker push potluriujwala/app:${{ github.run_number }}
 
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Check if requirements.txt has changed
+        id: requirements-check
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q '^requirements.txt$'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi     
+
+      - name: Push Docker base image to Docker Hub if requirements.txt changes
+        if: steps.requirements-check.outputs.changed == 'true'
+        run: |
+          az acr login --name ${{ secrets.ACR_NAME }}
+          docker build -f Dockerfile.base -t ${{ env.DOCKERHUB_BASE_IMAGE_NAME }}:latest .
+          
       - name: Deploy to Azure Container Apps
         run: |
           az containerapp update \
