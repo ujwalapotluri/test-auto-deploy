@@ -1,4 +1,4 @@
-name: deploy in CA with github actions
+name: Build and Deploy to Azure Container Apps
 
 on:
   push:
@@ -6,43 +6,56 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     env:
-      IMAGE_NAME: potluriujwala/app
-      IMAGE_TAG: build-${{ github.run_number }}
       ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-      ACR_IMAGE_NAME_BASE: base
-      ACR_IMAGE_NAME_APP: app
+      BASE_ACR_LOGIN_SERVER: ${{ secrets.BASE_ACR_LOGIN_SERVER }}
+      BASE_IMAGE_NAME: actionstestdeploybase
+      APP_IMAGE_NAME: actionstestdeploy
+      CONTAINER_APP_NAME: demotestdeploy
+      RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+      IMAGE_TAG: build-${{ github.run_number }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Azure Login
+      - name: Log in to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Check if requirements.txt has changed
-        id: requirements-check
+      - name: Check if requirements.txt changed
+        id: check_requirements
         run: |
-          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q '^requirements.txt$'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi     
+          git fetch origin main --depth=2
+          git diff --name-only HEAD^ HEAD | grep -q '^requirements.txt$' && echo "changed=true" >> $GITHUB_OUTPUT || echo "changed=false" >> $GITHUB_OUTPUT
 
-      - name: Push Docker base image to Docker Hub if requirements.txt changes
-        if: steps.requirements-check.outputs.changed == 'true'
+      - name: Log in to ACR
         run: |
           az acr login --name ${{ secrets.ACR_NAME }}
-          docker build -f Dockerfile.base -t ${{ env.DOCKERHUB_BASE_IMAGE_NAME }}:latest .
-          
-      - name: Deploy to Azure Container Apps
+
+      - name: Build and push base image if requirements.txt changed
+        if: steps.check_requirements.outputs.changed == 'true'
+        run: |
+          docker build -f Dockerfile.base -t $ACR_LOGIN_SERVER/$BASE_IMAGE_NAME:latest .
+          docker push $ACR_LOGIN_SERVER/$BASE_IMAGE_NAME:latest
+
+      - name: Build and push actual app image
+        run: |
+          docker build \
+            --build-arg BASE_IMAGE=$ACR_LOGIN_SERVER/$BASE_IMAGE_NAME:latest \
+            -f Dockerfile \
+            -t $ACR_LOGIN_SERVER/$APP_IMAGE_NAME:${{ env.IMAGE_TAG }} .
+          docker push $ACR_LOGIN_SERVER/$APP_IMAGE_NAME:${{ env.IMAGE_TAG }}
+
+      - name: Deploy to Azure Container App
         run: |
           az containerapp update \
-            --name test \
-            --resource-group practice \
-            --image potluriujwala/app:${{ github.run_number }}
+            --name $CONTAINER_APP_NAME \
+            --resource-group $RESOURCE_GROUP \
+            --image $ACR_LOGIN_SERVER/$APP_IMAGE_NAME:${{ env.IMAGE_TAG }}
+
+
